@@ -26,7 +26,7 @@ def _printOutError(videoName, message):
 #     fps = real fps achieved
 def extractFeaturesForEachFrame(videoPath):
   desiredFPS = 20 # in frames per second
-
+ 
   # start of model initial set up 
   predictor_path = '/home/noa_glaser/CS231A-project/featureExtraction/shape_predictor_68_face_landmarks.dat'
   print(os.path.exists(predictor_path))
@@ -42,6 +42,7 @@ def extractFeaturesForEachFrame(videoPath):
     return None
   meta_data = vid.get_meta_data()
   numframes = meta_data["nframes"]
+  MAX_CORRUPT_FRAMES = numframes*.1
   fps = meta_data["fps"]
   print(fps)
   ''' Example of metadata
@@ -60,6 +61,7 @@ def extractFeaturesForEachFrame(videoPath):
                                # the 68 dim corresponds the the 68 feature points
                                # the 2 dim corresponds x,y 
   # for f in range(0,numframes, sampleEveryN):
+  corruptFrames = 0
   for f in range(numFrames):
   # for f in range(10):
      print(int((f*fps)/desiredFPS))
@@ -69,7 +71,12 @@ def extractFeaturesForEachFrame(videoPath):
      # will make everything bigger and allow us to detect more faces.
      dets = detector(image, 1)
      if(len(dets) != 1):
-       return None
+       _printOutError(videoPath,'Didn\'t find a face on frame {0}'.format(int((f*fps)/desiredFPS)))
+       corruptFrames = corruptFrames + 1 
+       if corruptFrames > MAX_CORRUPT_FRAMES:
+         return None
+       else: 
+         continue
      # assert(len(dets) == 1) # detected exactly one face 
      # TODO: figure out better way to handle above 
      shape = predictor(image, dets[0])
@@ -77,32 +84,49 @@ def extractFeaturesForEachFrame(videoPath):
        shape.part(67) # all the parts are there , TODO : actually improve
      except:
        _printOutError(videoPath,'Doesn\'t contain all the parts, skipping')
-       return None
+       corruptFrames = corruptFrames + 1 
+       if corruptFrames > MAX_CORRUPT_FRAMES:
+         return None
+       else: 
+         continue
 
      xy = [[shape.part(i).x, shape.part(i).y] for i in range(68) ]
-     if f == 0:
-      ptsFromFrames =  np.array(xy)[np.newaxis, :,:]
+     xy = np.array(xy)[np.newaxis,:,:]
+     if(xy.shape[1] != 68 or xy.shape[2] != 2):
+       _printOutError(videoPath,'Frame {0} has wrong number of components'.format(int((f*fps)/desiredFPS)))
+       corruptFrames = corruptFrames + 1 
+       if corruptFrames > MAX_CORRUPT_FRAMES:
+         return None
+       else: 
+         continue
+
+     if ptsFromFrames.size == 0:
+      ptsFromFrames =  xy
      else:
-       ptsFromFrames =  np.concatenate((ptsFromFrames, np.array(xy)[np.newaxis, :,:]), axis=0) 
+       ptsFromFrames =  np.concatenate((ptsFromFrames, xy), axis=0) 
   result = {
    'data': ptsFromFrames,
    'fps': ptsFromFrames.shape[0]/meta_data['duration']
   }
   return result
 
-def forAllFilesInDir(path):
+def forAllFilesInDir(pathSource, pathDest):
     i = 0
     numSuccess = 0
-    for f in os.listdir(path):
+    listDirSet = set(os.listdir(pathDest))
+    for f in os.listdir(pathSource):
         if f.endswith(".mp4"):
-            print(i) # print which video we are processing
-            vidName = os.path.join(path, f)
+            outFileName = os.path.join(pathDest, f[:-4]) + ".p"  # excluding .mp4 endign
+            if f in listDirSet:
+               _printOutError(outFileName,'Skipping because output exists')
+               continue 
+            print(f) # print which video we are processing
+            vidName = os.path.join(pathSource, f)
             print(vidName)
             extracted = extractFeaturesForEachFrame(vidName)
             if(extracted == None):
                continue 
 
-            outFileName = os.path.join(path, f[:-4]) + ".p"  # excluding .mp4 endign
             pickle.dump(extracted,  open( outFileName , "wb" ) )
             numSuccess = numSuccess + 1
             print('So far outputed {0} files'.format(numSuccess))
@@ -111,10 +135,13 @@ def forAllFilesInDir(path):
 
 if __name__ == '__main__':
   # note/TODO: for visualization could also use the dlib visualizer?
-  if len(sys.argv) != 2:
+  # TODO: later could consider saving in memory a black list of files so we know not to waste time in trying those again
+  if len(sys.argv) != 3:
       print(
-       "Expecting 1 argument: Path to directory containing videos to extract features from"    
+       "Expecting 2 arguments:\n" + 
+        "First arg: Path to directory containing videos to extract features from\n" +  
+        "Secondn arg:  Path to output to"
       )
       exit()
   
-  forAllFilesInDir(sys.argv[1])
+  forAllFilesInDir(sys.argv[1], sys.argv[2])
