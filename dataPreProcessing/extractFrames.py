@@ -91,7 +91,7 @@ def getRegSpacing_ubuntu(vidname, numcapture, saveto):
         partition_len = int(numframes/numcapture)
         randomIndx = np.random.randint(i*partition_len, (i+1)*partition_len )
         image = vid.get_data(randomIndx)
-        image = _resize_image(image, 256) 
+        # image = _resize_image(image, 256) 
         imageio.imwrite(filenmtemplate % i, image) # save frame as jpeg file
 
 def _resize_image(img, smaller_dim):
