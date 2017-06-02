@@ -2,10 +2,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 import sys
+import pickle
 
 # expects as an argument a .npy file with nxpx2 data
 # where n is the number of frames, p is the number of points and 2 is x,y
-
 
 def update_line(num, data, line):
     # line.set_data(data[..., :num])
@@ -22,8 +22,10 @@ if __name__ == '__main__':
           )
       exit()
   fig1 = plt.figure()
-  
-  data = np.load(sys.argv[1]) 
+ 
+  a = pickle.load(open( sys.argv[1], "rb" )) 
+  data = a['data']
+  fps = a['fps']
   l, = plt.plot([], [], "o")
   
   pad = 5
@@ -41,8 +43,10 @@ if __name__ == '__main__':
 
   # for plotting, y at top left corner is 0 
   
-  line_ani = animation.FuncAnimation(fig1, update_line, 25, fargs=(data, l),
-                                     interval=50, blit=True)
-  
-  line_ani.save('testVideo.mp4', fps=10)
+  print(data.shape)
+  print(fps) 
+  # exit()
+  line_ani = animation.FuncAnimation(fig1, update_line, data.shape[0], fargs=(data, l),
+                                     interval=(1000/fps))
+  line_ani.save('testVideo.mp4', fps=fps)
   # plt.show()
