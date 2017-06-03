@@ -1,7 +1,3 @@
-'''
-Code copied from
-http://dlib.net/face_landmark_detection.py.html
-'''
 # imports from frame extraction
 # import cv2
 import imageio
@@ -12,13 +8,9 @@ from  scipy import misc
 # imports from dlib test 
 import sys
 import os
-import dlib
 
 import pickle
 import cv2
-
-#TODO: delete
-import matplotlib.pyplot as plt
 
 CROP_BUFFER = 8
 
@@ -33,6 +25,7 @@ def getDarkestCircle(image, circles):
      min_y, max_y = center_x - i[2], center_x + i[2]
      # return np.mean(image[min_y:max_y, min_x:max_x,:])
      a = image[min_y:max_y, min_x:max_x,:]
+     print('hello!')
      b = np.zeros(a.shape)
      b[a < 180] = 1.0
      return np.sum(b)/b.size
@@ -85,7 +78,7 @@ def cropRightEye(img, data):
   # cv2.imshow('rightEye', eye)
   return (eye, minX, minY)
  
-def extractIrisForEachFrame(videoPath, dataPath):
+def extractIrisForEachFrame(videoPath, dataPath, drawOutFrames=False):
   a = pickle.load(open( dataPath, "rb" )) 
   data = a['data']
 
@@ -107,11 +100,13 @@ def extractIrisForEachFrame(videoPath, dataPath):
   numFrames = int(meta_data['duration']*desiredFPS)
   
   ptsFromFrames = np.array([]) # will eventually be a nx2x3 : n frames, 2 eyes, c_x, c_y, r 
-  for f in range(100, numFrames):
+  frames = np.zeros(numFrames)
+  for f in range(0, numFrames):
   # for f in range(10):
      # print(int((f*fps)/desiredFPS))
      print('FRAME {0}'.format(f))
      image = vid.get_data(int((f*desiredFPS)/fps))
+     frames[f] = int((f*desiredFPS)/fps) 
      # Ask the detector to find the bounding boxes of each face. The 1 in the
      # second argument indicates that we should upsample the image 1 time. This
      # will make everything bigger and allow us to detect more faces.
@@ -125,37 +120,72 @@ def extractIrisForEachFrame(videoPath, dataPath):
      circlesLeft = cv2.HoughCircles(grayEye,cv2.HOUGH_GRADIENT,1,int(grayEye.shape[0]*.25),
                param1=30,param2=15, minRadius=int(grayEye.shape[0]*.25), maxRadius=int(grayEye.shape[0]*.6))
      # previously used 60,20
-     if(circlesLeft != None):
-       try:
-         drawCirclesOnImages(image,eyeLeft, circlesLeft, minX_l, minY_l)
-       except:
-         print("could not draw Left eye for frame {0}".format(f))
      grayEye =  cv2.cvtColor(eyeRight, cv2.COLOR_BGR2GRAY)
      grayEye = cv2.medianBlur(grayEye,3)
      #cv2.imwrite('testEyePlain.jpg', grayEye)
      circlesRight = cv2.HoughCircles(grayEye,cv2.HOUGH_GRADIENT,1,int(grayEye.shape[0]*.25),
                param1=30,param2=15, minRadius=int(grayEye.shape[0]*.25), maxRadius=int(grayEye.shape[0]*.6))
-     # print(circlesRight)
 
-     if(circlesRight != None):
-       try:
-         drawCirclesOnImages(image,eyeRight, circlesRight, minX_r, minY_r)
-       except:
-         print("could not draw right eye for frame {0}".format(f))
-     cv2.imwrite('testEye{0}.jpg'.format(f), image)
-     # if ptsFromFrames.size == 0:
-     #  ptsFromFrames =  xy
-     # else:
-     #   ptsFromFrames =  np.concatenate((ptsFromFrames, xy), axis=0) 
+     if(drawOutFrames):
+        if(circlesLeft != None):
+          try:
+            drawCirclesOnImages(image,eyeLeft, circlesLeft, minX_l, minY_l)
+          except:
+            print("could not draw Left eye for frame {0}".format(f))
 
-  # result = {
-  #  'data': ptsFromFrames,
-  # 'fps': ptsFromFrames.shape[0]/meta_data['duration']
-  #}
-  #return result
+        if(circlesRight != None):
+          try:
+            drawCirclesOnImages(image,eyeRight, circlesRight, minX_r, minY_r)
+          except:
+            print("could not draw right eye for frame {0}".format(f))
+        cv2.imwrite('testEye{0}.jpg'.format(f), image)
+
+     try:
+       circlesLeft = np.uint16(np.around(circlesLeft)) # around rounds
+       leftCircle =  getDarkestCircle(eyeLeft, circlesLeft)
+       leftCircle = leftCircle + np.array([ minX_l, minY_l, 0])
+     except Exception as inst:
+       print(type(inst))    # the exception instance
+       print(inst.args)     # arguments stored in .args
+       leftCircle = np.array([-1, -1, -1])
+     try:
+       circlesRight = np.uint16(np.around(circlesRight)) # around rounds
+       rightCircle  = getDarkestCircle(eyeRight, circlesRight)
+       rightCircle  = rightCircle + np.array([ minX_r, minY_r, 0])
+     except Exception as inst:
+       print(type(inst))    # the exception instance
+       print(inst.args)     # arguments stored in .args
+       rightCircle = np.array([-1, -1, -1])
+
+     xy =  np.concatenate((leftCircle[np.newaxis,:], rightCircle[np.newaxis,:]),axis=0)
+     print(xy)
+     if ptsFromFrames.size == 0:
+      ptsFromFrames =  xy[np.newaxis, :]
+     else:
+       ptsFromFrames =  np.concatenate((ptsFromFrames, xy[np.newaxis,:]), axis=0) # hopefully this works  
+
+  result = {
+    'data': ptsFromFrames, # order is left, right
+    'fps': ptsFromFrames.shape[0]/meta_data['duration'],
+    'frames': frames
+  }
+  return result
 
 if __name__ == '__main__':
-  moviePath = '/home/noa_glaser/data/train-5-6/videos/Yj36y7ELRZE.000.mp4'
-  movieDataPath = '/home/noa_glaser/data/train-5-6/extractedFacialFeatures/Yj36y7ELRZE.000.p'
- 
-  extractIrisForEachFrame(moviePath, movieDataPath)
+  if len(sys.argv) < 3:
+      print(
+       "Expects atleast 3 argument\n"+
+       "Arg 1 is path to video you want to do eye tracking on\n" + 
+       "Arg2 is the path to video you have 86 features extracted from"
+       # " Arg 2 can be a directory where you want all of the images"
+      )
+      exit()
+
+  moviePath = sys.argv[1]
+  movieDataPath = sys.argv[2]
+  drawOutFrames=False
+
+  a = extractIrisForEachFrame(moviePath, movieDataPath, drawOutFrames=drawOutFrames)
+  outFileName = moviePath[:-4] + "_iris.p"
+  pickle.dump(a,  open( outFileName , "wb" ) )
+
