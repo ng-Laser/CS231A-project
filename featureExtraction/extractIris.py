@@ -12,7 +12,7 @@ import os
 import pickle
 import cv2
 
-CROP_BUFFER = 8
+CROP_BUFFER = 0
 
 def _printOutError(videoName, message):
   print('For video {0}: {1}'.format(videoName, message))
@@ -25,39 +25,36 @@ def getDarkestCircle(image, circles):
      min_y, max_y = center_x - i[2], center_x + i[2]
      # return np.mean(image[min_y:max_y, min_x:max_x,:])
      a = image[min_y:max_y, min_x:max_x,:]
-     print('hello!')
      b = np.zeros(a.shape)
      b[a < 180] = 1.0
      return np.sum(b)/b.size
 
-   print([getAvgColor(i) for i in circles[0,:]])
    indx = np.nanargmax([getAvgColor(i) for i in circles[0,:]])
-   print(circles)
-   print(circles[0,indx,:])
    return circles[0, indx, :]
 
 def drawCirclesOnImages(image, eye, circles, offset_x, offset_y):
    print('num circles {0}'.format( circles.shape))
    circles = np.uint16(np.around(circles)) # around rounds
-   darkestCircle = getDarkestCircle(eye, circles)
+   # darkestCircle = getDarkestCircle(eye, circles)
 
    circles[0,:,0] = circles[0,:,0] + offset_x
    circles[0,:,1] = circles[0,:,1] + offset_y
-   print(darkestCircle)
+   # print(darkestCircle)
    # darkestCircle = darkestCircle + np.array([offset_x, offset_y, 0])
    print(circles[0,:])
-   print(darkestCircle)
+   # print(darkestCircle)
    for i in circles[0,:]:
        # draw the outer circle
        cv2.circle(image,(i[0],i[1]),i[2],(0,255,0),2) # BGR
        # draw the center of the circle
        cv2.circle(image,(i[0],i[1]),2,(255,0,0),3)
 
-   # draw the outer circle
-   cv2.circle(image,(darkestCircle[0], darkestCircle[1]),darkestCircle[2],(0,0,255),2) # BGR
-   # draw the center of the circle
-   cv2.circle(image,(darkestCircle[0],darkestCircle[1]),2,(0,0,255),3)
-
+def cropEye(eye, roi_corners):
+  grayEye =  cv2.cvtColor(eye, cv2.COLOR_BGR2GRAY)
+  grayEye = cv2.medianBlur(grayEye,3)
+  mask = np.zeros(grayEye.shape, dtype=np.uint8)
+  cv2.fillPoly(mask, roi_corners, 255)
+  return  cv2.bitwise_and(grayEye, mask)
 
 # expects data to be slice relevant to this frame 
 # returns eye, top left corner ofsets 
@@ -65,18 +62,36 @@ def cropLeftEye(img, data):
   minX, maxX = (data[36, 0] - CROP_BUFFER, data[39, 0] + CROP_BUFFER)
   minY, maxY = (data[38, 1] - CROP_BUFFER, data[41, 1] + CROP_BUFFER)
   eye = img[minY:maxY,minX:maxX ]
-  # cv2.imshow('leftEye', eye)
-  return (eye, minX, minY)
-
-  
+  roi_corners = np.array([data[range(36,42), :]], dtype=np.int32)
+  roi_corners =  roi_corners - np.array([ minX, minY], dtype='int32')
+  grayEye = cropEye(eye, roi_corners)
+  return (grayEye, minX, minY)
+   
 # expects data to be slice relevant to this frame 
 # returns eye, top left corner ofsets 
 def cropRightEye(img, data):
   minX, maxX = (data[42, 0] - CROP_BUFFER, data[45, 0] + CROP_BUFFER)
   minY, maxY = (data[44, 1] - CROP_BUFFER, data[46, 1] + CROP_BUFFER)
   eye = img[minY:maxY,minX:maxX ]
-  # cv2.imshow('rightEye', eye)
-  return (eye, minX, minY)
+  roi_corners = np.array([data[range(42, 48), :]], dtype=np.int32)
+  roi_corners =  roi_corners - np.array([ minX, minY], dtype='int32')
+  grayEye = cropEye(eye, roi_corners)
+  return (grayEye, minX, minY)
+
+def extractCirclesDraw(eye, image, draw, minX, minY):
+  # cv2.imwrite('testEyePlain.jpg', grayEye)
+  circles = cv2.HoughCircles(eye,cv2.HOUGH_GRADIENT, 1,int(eye.shape[1]),
+         param1=30,param2=15, minRadius=int(eye.shape[0]*.15), maxRadius=int(eye.shape[0]*.7))
+  print('circles {0}'.format(circles))
+  if(circles != None):
+    try:
+      drawCirclesOnImages(image,eye, circles, minX, minY)
+    except Exception as inst:
+      print(type(inst))    # the exception instance
+      print(inst.args)     # arguments stored in .args
+      print("could not draw eye")
+
+  return circles
  
 def extractIrisForEachFrame(videoPath, dataPath, drawOutFrames=False):
   a = pickle.load(open( dataPath, "rb" )) 
@@ -113,31 +128,12 @@ def extractIrisForEachFrame(videoPath, dataPath, drawOutFrames=False):
      eyeLeft,  minX_l, minY_l = cropLeftEye(image, data[f,:,:])
      eyeRight, minX_r, minY_r = cropRightEye(image, data[f,:,:])
 
-     grayEye =  cv2.cvtColor(eyeLeft, cv2.COLOR_BGR2GRAY)
-     grayEye = cv2.medianBlur(grayEye,3)
-     # print('grayEye shape {0}'.format(grayEye.shape))
-     # cv2.imwrite('testEyePlain.jpg', grayEye)
-     circlesLeft = cv2.HoughCircles(grayEye,cv2.HOUGH_GRADIENT,1,int(grayEye.shape[0]*.25),
-               param1=30,param2=15, minRadius=int(grayEye.shape[0]*.25), maxRadius=int(grayEye.shape[0]*.6))
-     # previously used 60,20
-     grayEye =  cv2.cvtColor(eyeRight, cv2.COLOR_BGR2GRAY)
-     grayEye = cv2.medianBlur(grayEye,3)
+     drawOutFrames = True
+     circlesLeft = extractCirclesDraw(eyeLeft, image, drawOutFrames,  minX_l, minY_l)
+     circlesRight = extractCirclesDraw(eyeRight, image, drawOutFrames,minX_r, minY_r)
      #cv2.imwrite('testEyePlain.jpg', grayEye)
-     circlesRight = cv2.HoughCircles(grayEye,cv2.HOUGH_GRADIENT,1,int(grayEye.shape[0]*.25),
-               param1=30,param2=15, minRadius=int(grayEye.shape[0]*.25), maxRadius=int(grayEye.shape[0]*.6))
 
      if(drawOutFrames):
-        if(circlesLeft != None):
-          try:
-            drawCirclesOnImages(image,eyeLeft, circlesLeft, minX_l, minY_l)
-          except:
-            print("could not draw Left eye for frame {0}".format(f))
-
-        if(circlesRight != None):
-          try:
-            drawCirclesOnImages(image,eyeRight, circlesRight, minX_r, minY_r)
-          except:
-            print("could not draw right eye for frame {0}".format(f))
         cv2.imwrite('testEye{0}.jpg'.format(f), image)
 
      try:
@@ -176,7 +172,7 @@ if __name__ == '__main__':
       print(
        "Expects atleast 3 argument\n"+
        "Arg 1 is path to video you want to do eye tracking on\n" + 
-       "Arg2 is the path to video you have 86 features extracted from"
+       "Arg2 is the path to .p file you have 86 features extracted from"
        # " Arg 2 can be a directory where you want all of the images"
       )
       exit()
