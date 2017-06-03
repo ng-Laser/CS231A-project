@@ -62,10 +62,13 @@ def extractFeaturesForEachFrame(videoPath):
                                # the 2 dim corresponds x,y 
   # for f in range(0,numframes, sampleEveryN):
   corruptFrames = 0
+  frames = np.zeros(numFrames)
   for f in range(numFrames):
   # for f in range(10):
-     print(int((f*fps)/desiredFPS))
-     image = vid.get_data(int((f*desiredFPS)/fps))
+     frame = int((f*fps)/desiredFPS)
+     frames[f] = frame
+     print(frame)
+     image = vid.get_data(frame)
      # Ask the detector to find the bounding boxes of each face. The 1 in the
      # second argument indicates that we should upsample the image 1 time. This
      # will make everything bigger and allow us to detect more faces.
@@ -106,6 +109,7 @@ def extractFeaturesForEachFrame(videoPath):
        ptsFromFrames =  np.concatenate((ptsFromFrames, xy), axis=0) 
   result = {
    'data': ptsFromFrames,
+   'frames': frames, 
    'fps': ptsFromFrames.shape[0]/meta_data['duration']
   }
   return result
@@ -131,7 +135,6 @@ def forAllFilesInDir(pathSource, pathDest):
             numSuccess = numSuccess + 1
             print('So far outputed {0} files'.format(numSuccess))
             # np.save(extracedFileName , extracted)
-
 
 if __name__ == '__main__':
   # note/TODO: for visualization could also use the dlib visualizer?
