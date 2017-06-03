@@ -37,7 +37,9 @@ def extractFeaturesForEachFrame(videoPath):
   try:
     vid = imageio.get_reader(videoPath,  'ffmpeg')
 
-  except:
+  except Exception as inst:
+    print(type(inst))    # the exception instance
+    print(inst.args)     # arguments stored in .args
     _printOutError(videoPath,'Could not open video')
     return None
   meta_data = vid.get_meta_data()

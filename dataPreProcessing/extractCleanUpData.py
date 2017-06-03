@@ -21,6 +21,19 @@ def splitIntoTrainVal(directory, ratio_of_train):
   for f in dirListing[numTrain:]:
     os.rename(os.path.join(directory, f),os.path.join( valFolder, f))
 
+def splitNWay(directory, numBatches):
+  dirListing = os.listdir(directory)
+  random.shuffle(dirListing)
+  sizeBatch = int(len(dirListing) /numBatches)
+
+  for i in range(numBatches): 
+    batchFolder = os.path.join(directory, 'batch-{0}'.format(i))
+    os.system('mkdir ' +  batchFolder)
+    for f in dirListing[sizeBatch*(i):sizeBatch*(i+1)]:
+      print os.path.join(directory, f),os.path.join( batchFolder, f)
+      os.rename(os.path.join(directory, f),os.path.join( batchFolder, f))
+
+
 def resetNamesBack(dr):
   fileEnding ='_50uniform' #TODO: figure out how to make more general
 
@@ -60,5 +73,5 @@ def unzipAllFlsModNameMove():
 
 if __name__ == '__main__': 
   sourceFile = sys.argv[1]
-  splitIntoTrainVal( sourceFile, .5)
+  splitNWay( sourceFile, 10)
 
