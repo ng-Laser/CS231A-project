@@ -22,9 +22,9 @@ def animateIrisTracking(moviePath, data, frames, fps):
       if(-1 not in circle):
         print('circle {0}'.format(circle))
         # draw the outer circle
-        cv2.circle(image_data,(circle[0], circle[1]),circle[2],(255,0,0),2) # BGR
+        cv2.circle(image_data,(circle[0], circle[1]),int(circle[2]),(0, 255,0),2) # BGR
         # draw the center of the circle
-        cv2.circle(image_data,(circle[0], circle[1]),2,(255,0,0),3)
+        cv2.circle(image_data,(circle[0], circle[1]),2,(0,255,0),3)
     return image_data
 
   # function to update figure

@@ -33,15 +33,12 @@ def getDarkestCircle(image, circles):
    return circles[0, indx, :]
 
 def drawCirclesOnImages(image, eye, circles, offset_x, offset_y):
-   print('num circles {0}'.format( circles.shape))
-   circles = np.uint16(np.around(circles)) # around rounds
    # darkestCircle = getDarkestCircle(eye, circles)
 
    circles[0,:,0] = circles[0,:,0] + offset_x
    circles[0,:,1] = circles[0,:,1] + offset_y
    # print(darkestCircle)
    # darkestCircle = darkestCircle + np.array([offset_x, offset_y, 0])
-   print(circles[0,:])
    # print(darkestCircle)
    for i in circles[0,:]:
        # draw the outer circle
@@ -81,17 +78,18 @@ def cropRightEye(img, data):
 def extractCirclesDraw(eye, image, draw, minX, minY):
   # cv2.imwrite('testEyePlain.jpg', grayEye)
   circles = cv2.HoughCircles(eye,cv2.HOUGH_GRADIENT, 1,int(eye.shape[1]),
-         param1=30,param2=15, minRadius=int(eye.shape[0]*.15), maxRadius=int(eye.shape[0]*.7))
-  print('circles {0}'.format(circles))
+         param1=30,param2=15, minRadius=int(eye.shape[0]*.15))
   if(circles != None):
+    circles = np.uint16(np.around(circles)) # around rounds
     try:
       drawCirclesOnImages(image,eye, circles, minX, minY)
     except Exception as inst:
       print(type(inst))    # the exception instance
       print(inst.args)     # arguments stored in .args
       print("could not draw eye")
+    return circles[0,0,:]
+  return np.array([-1, -1, -1])
 
-  return circles
  
 def extractIrisForEachFrame(videoPath, dataPath, drawOutFrames=False):
   a = pickle.load(open( dataPath, "rb" )) 
@@ -117,44 +115,21 @@ def extractIrisForEachFrame(videoPath, dataPath, drawOutFrames=False):
   ptsFromFrames = np.array([]) # will eventually be a nx2x3 : n frames, 2 eyes, c_x, c_y, r 
   frames = np.zeros(numFrames)
   for f in range(0, numFrames):
-  # for f in range(10):
-     # print(int((f*fps)/desiredFPS))
-     print('FRAME {0}'.format(f))
-     image = vid.get_data(int((f*desiredFPS)/fps))
-     frames[f] = int((f*desiredFPS)/fps) 
-     # Ask the detector to find the bounding boxes of each face. The 1 in the
-     # second argument indicates that we should upsample the image 1 time. This
-     # will make everything bigger and allow us to detect more faces.
+     if(f %50 == 0):
+       print('FRAME {0}'.format(f))
+     frame = int((f*desiredFPS)/fps) 
+     image = vid.get_data(frame)
+     frames[f] = frame 
      eyeLeft,  minX_l, minY_l = cropLeftEye(image, data[f,:,:])
      eyeRight, minX_r, minY_r = cropRightEye(image, data[f,:,:])
 
-     drawOutFrames = True
-     circlesLeft = extractCirclesDraw(eyeLeft, image, drawOutFrames,  minX_l, minY_l)
-     circlesRight = extractCirclesDraw(eyeRight, image, drawOutFrames,minX_r, minY_r)
-     #cv2.imwrite('testEyePlain.jpg', grayEye)
+     leftCircle  = extractCirclesDraw(eyeLeft, image, drawOutFrames,  minX_l, minY_l)
+     rightCircle = extractCirclesDraw(eyeRight, image, drawOutFrames,minX_r, minY_r)
 
      if(drawOutFrames):
         cv2.imwrite('testEye{0}.jpg'.format(f), image)
 
-     try:
-       circlesLeft = np.uint16(np.around(circlesLeft)) # around rounds
-       leftCircle =  getDarkestCircle(eyeLeft, circlesLeft)
-       leftCircle = leftCircle + np.array([ minX_l, minY_l, 0])
-     except Exception as inst:
-       print(type(inst))    # the exception instance
-       print(inst.args)     # arguments stored in .args
-       leftCircle = np.array([-1, -1, -1])
-     try:
-       circlesRight = np.uint16(np.around(circlesRight)) # around rounds
-       rightCircle  = getDarkestCircle(eyeRight, circlesRight)
-       rightCircle  = rightCircle + np.array([ minX_r, minY_r, 0])
-     except Exception as inst:
-       print(type(inst))    # the exception instance
-       print(inst.args)     # arguments stored in .args
-       rightCircle = np.array([-1, -1, -1])
-
      xy =  np.concatenate((leftCircle[np.newaxis,:], rightCircle[np.newaxis,:]),axis=0)
-     print(xy)
      if ptsFromFrames.size == 0:
       ptsFromFrames =  xy[np.newaxis, :]
      else:
@@ -167,6 +142,32 @@ def extractIrisForEachFrame(videoPath, dataPath, drawOutFrames=False):
   }
   return result
 
+def forAllFilesInDir(pathData, pathMovie):
+    i = 0
+    numSuccess = 0
+    for f in os.listdir(pathData):
+        if f.endswith(".p") and not f.endswith("_iris.py"):
+            outFileName = os.path.join(pathData, f[:-2]) + "_iris.p"
+            movieName =  os.path.join(pathMovie, f[:-2]) + ".mp4"
+            dataName = os.path.join(pathData, f)
+            # if f in listDirSet:
+            #    _printOutError(outFileName,'Skipping because output exists')
+            #    continue 
+            print(f) # print which video we are processing
+            try:
+              extracted = extractIrisForEachFrame(movieName, dataName, drawOutFrames=False)
+            except Exception as inst:
+              print(type(inst))    # the exception instance
+              print(inst.args)     # arguments stored in .args
+              print("Extraction for movie {0} failed".format(movieName))
+            if(extracted == None):
+               continue # should probably printn something here  
+
+            pickle.dump(extracted,  open( outFileName , "wb" ) )
+            numSuccess = numSuccess + 1
+            print('So far outputed {0} files'.format(numSuccess))
+
+
 if __name__ == '__main__':
   if len(sys.argv) < 3:
       print(
@@ -177,11 +178,12 @@ if __name__ == '__main__':
       )
       exit()
 
-  moviePath = sys.argv[1]
-  movieDataPath = sys.argv[2]
+  pathMovie = sys.argv[1]
+  pathData = sys.argv[2]
   drawOutFrames=False
 
-  a = extractIrisForEachFrame(moviePath, movieDataPath, drawOutFrames=drawOutFrames)
-  outFileName = moviePath[:-4] + "_iris.p"
-  pickle.dump(a,  open( outFileName , "wb" ) )
+  forAllFilesInDir(pathData, pathMovie)
+  # a = extractIrisForEachFrame(moviePath, movieDataPath, drawOutFrames=drawOutFrames)
+  #outFileName = moviePath[:-4] + "_iris.p"
+  # pickle.dump(a,  open( outFileName , "wb" ) )
 
