@@ -66,7 +66,6 @@ def extractFeaturesForEachFrame(videoPath):
   for f in range(numFrames):
   # for f in range(10):
      frame = int((f*fps)/desiredFPS)
-     frames[f] = frame
      print(frame)
      image = vid.get_data(frame)
      # Ask the detector to find the bounding boxes of each face. The 1 in the
@@ -83,7 +82,7 @@ def extractFeaturesForEachFrame(videoPath):
      # assert(len(dets) == 1) # detected exactly one face 
      # TODO: figure out better way to handle above 
      shape = predictor(image, dets[0])
-     try:
+
        shape.part(67) # all the parts are there , TODO : actually improve
      except:
        _printOutError(videoPath,'Doesn\'t contain all the parts, skipping')
@@ -103,13 +102,14 @@ def extractFeaturesForEachFrame(videoPath):
        else: 
          continue
 
+     frames[f-corruptFrames] = frame
      if ptsFromFrames.size == 0:
       ptsFromFrames =  xy
      else:
        ptsFromFrames =  np.concatenate((ptsFromFrames, xy), axis=0) 
   result = {
    'data': ptsFromFrames,
-   'frames': frames, 
+   'frames': frames[:ptsFromFrames.shape[0]], 
    'fps': ptsFromFrames.shape[0]/meta_data['duration']
   }
   return result

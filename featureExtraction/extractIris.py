@@ -14,6 +14,24 @@ import cv2
 
 CROP_BUFFER = 0
 
+def reportPercentMissingEye(data):
+  b_right = [1 for i in range(data.shape[0]) if -1 in data[i,0,:]]
+  b_left = [1 for i in range(data.shape[0]) if -1 in data[i,1,:]]
+  return (len(b_left)*1.0/data.shape[0], len(b_right)*1.0/data.shape[0])
+
+def generateFrameNumbers(meta_data):
+  numframes = meta_data["nframes"]
+  fps = meta_data["fps"]
+  print('video fps {0}'.format(fps))
+  numFrames = int(meta_data['duration']*20) # used 20 in original script
+  print('numframes {0}'.format(numframes))
+  frames = np.zeros(numFrames)
+  for f in range(numFrames):
+  #    frames[f] = int((f*fps)/20)
+     frames[f] = int((f*20)/fps)
+  frames = frames.astype(np.int32)
+  return frames
+
 def _printOutError(videoName, message):
   print('For video {0}: {1}'.format(videoName, message))
 
@@ -75,10 +93,28 @@ def cropRightEye(img, data):
   grayEye = cropEye(eye, roi_corners)
   return (grayEye, minX, minY)
 
+def _drawLeftEye(img, data): # debug
+  minX, maxX = (data[36, 0] - CROP_BUFFER, data[39, 0] + CROP_BUFFER)
+  minY, maxY = (data[38, 1] - CROP_BUFFER, data[41, 1] + CROP_BUFFER)
+  roi_corners = np.array([data[range(36,42), :]], dtype=np.int32)
+  cv2.rectangle(img, (minX, maxY), (maxX, minY),(0,255,0),3) 
+  for point in roi_corners[0,:]: # 68 points for frame number i 
+    cv2.circle(img,(point[0], point[1]),2,(0,255,0),3)
+  return img
+
+def _drawRightEye(img, data): # debug
+  minX, maxX = (data[42, 0] - CROP_BUFFER, data[45, 0] + CROP_BUFFER)
+  minY, maxY = (data[44, 1] - CROP_BUFFER, data[46, 1] + CROP_BUFFER)
+  roi_corners = np.array([data[range(42, 48), :]], dtype=np.int32)
+  cv2.rectangle(img, (minX, maxY), (maxX, minY),(0,255,0),3) 
+  for point in roi_corners[0,:]: # 68 points for frame number i 
+    cv2.circle(img,(point[0], point[1]),2,(0,255,0),3)
+  return img
+
 def extractCirclesDraw(eye, image, draw, minX, minY):
   # cv2.imwrite('testEyePlain.jpg', grayEye)
   circles = cv2.HoughCircles(eye,cv2.HOUGH_GRADIENT, 1,int(eye.shape[1]),
-         param1=30,param2=15, minRadius=int(eye.shape[0]*.15))
+         param1=30,param2=10, minRadius=int(eye.shape[0]*.1))
   if(circles != None):
     circles = np.uint16(np.around(circles)) # around rounds
     try:
@@ -95,33 +131,31 @@ def extractIrisForEachFrame(videoPath, dataPath, drawOutFrames=False):
   a = pickle.load(open( dataPath, "rb" )) 
   data = a['data']
 
-  desiredFPS = 20 # in frames per second
-  # start of model initial set up 
   # open video/ get metadata
   try:
     vid = imageio.get_reader(videoPath,  'ffmpeg')
-  except:
+  except Exception as inst:
+    print(type(inst))    # the exception instance
+    print(inst.args)     # arguments stored in .args
     _printOutError(videoPath,'Could not open video')
     return None
 
   meta_data = vid.get_meta_data()
-  numframes = meta_data["nframes"]
-  fps = meta_data["fps"]
-  if(fps < desiredFPS):
-    _printOutError(videoPath,'Frame rate of original video too low')
-    return None
-  numFrames = int(meta_data['duration']*desiredFPS)
-  
+  if(a.get('frames') == None):
+    frames = generateFrameNumbers(meta_data) 
+  else:
+    frames = a['frames'].astype(np.int32)
   ptsFromFrames = np.array([]) # will eventually be a nx2x3 : n frames, 2 eyes, c_x, c_y, r 
-  frames = np.zeros(numFrames)
-  for f in range(0, numFrames):
+  for f in range(len(frames)):
      if(f %50 == 0):
        print('FRAME {0}'.format(f))
-     frame = int((f*desiredFPS)/fps) 
-     image = vid.get_data(frame)
-     frames[f] = frame 
+     image = vid.get_data(frames[f])
      eyeLeft,  minX_l, minY_l = cropLeftEye(image, data[f,:,:])
      eyeRight, minX_r, minY_r = cropRightEye(image, data[f,:,:])
+     # image = _drawLeftEye(image, data[f,:,:])
+     # image = _drawRightEye(image, data[f,:,:])
+     # cv2.imwrite('testDrawEye{0}.jpg'.format(f),image[min(minY_l, minY_r)-50:minY_l+100,minX_l - 50:minX_r+100 ])
+     # continue
 
      leftCircle  = extractCirclesDraw(eyeLeft, image, drawOutFrames,  minX_l, minY_l)
      rightCircle = extractCirclesDraw(eyeRight, image, drawOutFrames,minX_r, minY_r)
@@ -135,6 +169,8 @@ def extractIrisForEachFrame(videoPath, dataPath, drawOutFrames=False):
      else:
        ptsFromFrames =  np.concatenate((ptsFromFrames, xy[np.newaxis,:]), axis=0) # hopefully this works  
 
+  print(ptsFromFrames.shape)
+  print('percent frames missing an eye {0}'.format(reportPercentMissingEye(ptsFromFrames)))
   result = {
     'data': ptsFromFrames, # order is left, right
     'fps': ptsFromFrames.shape[0]/meta_data['duration'],
@@ -146,7 +182,7 @@ def forAllFilesInDir(pathData, pathMovie):
     i = 0
     numSuccess = 0
     for f in os.listdir(pathData):
-        if f.endswith(".p") and not f.endswith("_iris.py"):
+        if f.endswith(".p") and not(f.endswith("_iris.py")):
             outFileName = os.path.join(pathData, f[:-2]) + "_iris.p"
             movieName =  os.path.join(pathMovie, f[:-2]) + ".mp4"
             dataName = os.path.join(pathData, f)
@@ -154,18 +190,21 @@ def forAllFilesInDir(pathData, pathMovie):
             #    _printOutError(outFileName,'Skipping because output exists')
             #    continue 
             print(f) # print which video we are processing
-            try:
+
+            extracted = extractIrisForEachFrame(movieName, dataName, drawOutFrames=False)
+            '''
+             try:
               extracted = extractIrisForEachFrame(movieName, dataName, drawOutFrames=False)
             except Exception as inst:
               print(type(inst))    # the exception instance
               print(inst.args)     # arguments stored in .args
               print("Extraction for movie {0} failed".format(movieName))
-            if(extracted == None):
-               continue # should probably printn something here  
-
-            pickle.dump(extracted,  open( outFileName , "wb" ) )
-            numSuccess = numSuccess + 1
-            print('So far outputed {0} files'.format(numSuccess))
+              continue # should probably printn something here  
+            '''
+            if(extracted != None):
+              pickle.dump(extracted,  open( outFileName , "wb" ) )
+              numSuccess = numSuccess + 1
+              print('So far outputed {0} files'.format(numSuccess))
 
 
 if __name__ == '__main__':
