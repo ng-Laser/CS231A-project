@@ -84,7 +84,7 @@ def extractFeaturesForEachFrame(videoPath):
      # assert(len(dets) == 1) # detected exactly one face 
      # TODO: figure out better way to handle above 
      shape = predictor(image, dets[0])
-
+     try:
        shape.part(67) # all the parts are there , TODO : actually improve
      except:
        _printOutError(videoPath,'Doesn\'t contain all the parts, skipping')
