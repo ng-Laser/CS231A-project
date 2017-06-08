@@ -2,9 +2,10 @@ from gridClass import Historgram
 import matplotlib.pyplot as plt
 import numpy as np
 import sys
-sys.path.append("../visualization")
+sys.path.append("/home/noa_glaser/CS231A-project/visualization")
 import animatePoints
 import pickle
+import cv2
 
 '''
 TODO as an extention,
@@ -13,7 +14,6 @@ align the face to absolute forward
    the criterion for the first face
 2) align to a prior that is the structure of the face
 '''
-# untested
 def _findMostForwardFace(featuresData):
   maxNoseLength = np.max(featuresData[:,30,1] - featuresData[:,27,1])
   # maxFaceWidth = np.max(featuresData[:,16,0] - featuresData[:,0,0])
@@ -21,7 +21,6 @@ def _findMostForwardFace(featuresData):
 
   def generateCriterion(featuresFrame):
      c = 0 # criterion
-
      # nose length as fraction of max length (align face pitch)
      c = c + (featuresFrame[30,1] - featuresFrame[27,1])*1.0
      # skewness of nose - along with above align face pitch, and roll 
@@ -45,25 +44,14 @@ TODO as an extention: more intelligent guesses about where the irises are
    i.e. noise rejection, averages across subsequent frames
 
 Inputs:
-   IrisTrackingData, the *_iris.p data including frames and the data 
-   leftEye - bool, if true looks at left eye, if false looks at right eye 
-      (w.r.t image not anatomically)
    numFrames, number of frames to extract 
 '''
-# untested
-def _randomlySelectFrames(irisTrackingData, frames, leftEye=True, numFrames=200):
-  irisTrackingPoints = None
-  if(leftEye):
-    irisTrackingPoints = irisTrackingData[:,0,:]
-  else:
-    irisTrackingPoints = irisTrackingData[:,1,:]
-  validIndexes = np.array([i for i in range(irisTrackingData.shape[0]) if -1 not in irisTrackingData[i]])
+def _randomlySelectFrames(irisTrackingPoints, frames, numFrames=200):
+  validIndexes = np.array([i for i in range(irisTrackingPoints.shape[0]) if -1 not in irisTrackingPoints[i]])
   assert(len(validIndexes) >= numFrames)
 
   validIndexes = validIndexes[np.random.choice(validIndexes.shape[0], size=numFrames, replace=False).astype(np.uint32)]
   validIndexes.sort()
-  irisTrackingPoints[validIndexes]
-  frames[validIndexes]
   return (irisTrackingPoints[validIndexes,:], frames[validIndexes])
 
 '''
@@ -76,8 +64,30 @@ def _animateCriterion(videoName, data, fps):
   annotation = np.array(criterion)[select]
   animatePoints.animateFromData(videoName, data[select,:], fps, annotation=annotation)
 
-def alignAllToHomography(referenceFace):
-  pass 
+'''
+Assumes 'data' is not homogenized 
+'''
+def perspectiveTransform(data, h):
+  data = np.concatenate((data, np.ones((data.shape[0],1))), axis=1)
+  proj = h.dot(data.T) # result is unormalized and transposed
+  proj = (proj/proj[2,:]).T
+  return proj[:,:2]
+
+def alignAllToHomography(referenceFace, data, irisPts):
+  def _getPointsForHomography(face):
+    relevantPoints = np.array([0,1,2,3,36,39,27,28,29,30,42,45,14,15,16])
+    return face[relevantPoints,:]
+
+  referenceFaceHPoints = _getPointsForHomography(referenceFace)
+  alignedFaces = np.zeros(data.shape)
+  alignedIris = np.zeros(irisPts.shape)
+  for i in range(data.shape[0]):
+    face = data[i,:]
+    faceHpoints = _getPointsForHomography(face)
+    h = cv2.findHomography(faceHpoints, referenceFaceHPoints)[0]
+    alignedFaces[i,:,:] =  perspectiveTransform(face, h)
+    alignedIris[i,:] = perspectiveTransform(irisPts[i,:][np.newaxis, :], h)
+  return alignedIris, alignedFaces
  
 if __name__ == '__main__':
   print 'hello' 
@@ -89,34 +99,45 @@ if __name__ == '__main__':
       )
       exit()
 
+  leftEye = True # which eye we're creating the histogram for 
+  irisFile = sys.argv[2]
+  iris = pickle.load(open( irisFile, "rb" ))
+  irisData = iris['data'][:,:,:2] # don't care about radius
+  if(leftEye):
+    irisData = irisData[:,0,:]
+  else:
+    irisData = irisData[:,1,:]
+
   featureFile = sys.argv[1]
   features = pickle.load(open( featureFile, "rb" ))
   featureData = features['data']
   fps = features['fps']
-
-  irisFile = sys.argv[2]
-  iris = pickle.load(open( irisFile, "rb" ))
   assert(np.abs(fps - iris['fps']) < .001)
-  irisData = iris['data'][:,:2] # don't care about radius
-  
-  # referenceFace = _findMostForwardFace(featureData)
-  irisTrackingPoints, irisFrames =  _randomlySelectFrames(irisData, iris['frames'], leftEye=True, numFrames=170)
-  
+
+  # find reference face   
+  referenceFace = _findMostForwardFace(featureData)
+ 
+  # start picking iris data frames we wantn to plot
+  irisTrackingPoints, irisFrames =  _randomlySelectFrames(irisData, iris['frames'], numFrames=170)
   assert(features.get('frames') is not None)
   featureFrames = features['frames']
   featureFrameIndexes = [i for i in range(featureFrames.shape[0]) if featureFrames[i] in irisFrames]
   featureDataSelected = featureData[featureFrameIndexes]
-
   assert(featureDataSelected.shape[0] == irisTrackingPoints.shape[0])
-  print('featureDataSelected shape {0}'.format(featureDataSelected.shape))
-  print('irisTrackingPoints shape {0}'.format(irisTrackingPoints.shape))
-
   # animatePoints.animateFromData(featureFile[:-2] + '_bothSelected.mp4', \
   #   np.concatenate((featureDataSelected, irisTrackingPoints[:,np.newaxis,:2]), axis=1),\
   #   fps, None)
 
-  hist = Historgram(10,10) # choosing 10 arbitrarily
-  hist.insertEyeDataCollectionToHistogram(irisTrackingPoints, featureDataSelected, eyeLeft=True)
+  # align the iris frames to the reference face
+  alignedIrisPts, alignedFaces = alignAllToHomography(referenceFace, featureDataSelected, irisTrackingPoints)
+  print('aligned')
+  # animatePoints.animateFromData(featureFile[:-2] + '_bothAligned.mp4', \
+  #  np.concatenate((alignedFaces, alignedIrisPts[:,np.newaxis,:]), axis=1),3, None)
+
+
+  # generate Histogram
+  hist = Historgram(10,14) # choosing 10 arbitrarily widthPartitions, hightPartitions
+  hist.insertEyeDataCollectionToHistogram(alignedIrisPts, alignedFaces, eyeLeft=True)
   print hist.data
 
   histFileName = featureFile[:-2] + '_irisHst.p'
