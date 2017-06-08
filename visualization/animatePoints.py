@@ -8,13 +8,19 @@ import os
 # expects as an argument a .npy file with nxpx2 data
 # where n is the number of frames, p is the number of points and 2 is x,y
 
-def update_line(num, data, line):
+def update_line(num, data, line, annotationStuff):
     # line.set_data(data[..., :num])
     # return np.random.randint(1, 30, 30), np.random.randint(1, 30, 30)
     line.set_data(data[num, :,0], data[num,:,1])
-    return line,
+    if(annotationStuff != None):
+      annotation, plt, annotationLocation = annotationStuff
+      print(annotationLocation)
+      print(annotation[num])
+      plt.title(str(annotation[num]))
+      # ax.annotate(s=str(annotation[num]), xy=annotationLocation,  xytext=annotationLocation)
+    return line
 
-def animateFromData(videoName, data, fps):
+def animateFromData(videoName, data, fps, annotation=None):
   fig1 = plt.figure()
   l, = plt.plot([], [], "o")
   pad = 5
@@ -27,15 +33,13 @@ def animateFromData(videoName, data, fps):
   plt.xlim(np.min(x_vars) - pad, np.max(x_vars) + pad)
   plt.ylim(y_min, y_max)
 
-  plt.xlabel('x')
-  plt.title('y')
 
-  # for plotting, y at top left corner is 0 
-  
-  print(data.shape)
-  print(fps) 
-  # exit()
-  line_ani = animation.FuncAnimation(fig1, update_line, data.shape[0], fargs=(data, l),
+  annotationStuff = None
+  if annotation is not None:
+    ax = fig1.add_subplot(1,1,1)
+    annotationLocation = (y_min + 30, np.min(x_vars)+50)
+    annotationStuff = (annotation, plt, annotationLocation)
+  line_ani = animation.FuncAnimation(fig1, update_line, data.shape[0], fargs=(data, l, annotationStuff),
                                      interval=(1000/fps))
   line_ani.save(videoName, fps=fps)
 

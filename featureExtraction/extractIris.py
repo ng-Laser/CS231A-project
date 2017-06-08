@@ -211,8 +211,8 @@ if __name__ == '__main__':
   if len(sys.argv) < 3:
       print(
        "Expects atleast 3 argument\n"+
-       "Arg 1 is path to video you want to do eye tracking on\n" + 
-       "Arg2 is the path to .p file you have 86 features extracted from"
+       "Arg 1 is path to video dir you want to do eye tracking on\n" + 
+       "Arg2 is the path to .p dir you have 86 features extracted from"
        # " Arg 2 can be a directory where you want all of the images"
       )
       exit()

@@ -123,7 +123,7 @@ def forAllFilesInDir(pathSource, pathDest):
     for f in os.listdir(pathSource):
         if f.endswith(".mp4"):
             outFileName = os.path.join(pathDest, f[:-4]) + ".p"  # excluding .mp4 endign
-            if f in listDirSet:
+            if outFileName in listDirSet:
                _printOutError(outFileName,'Skipping because output exists')
                continue 
             print(f) # print which video we are processing
