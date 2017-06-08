@@ -4,6 +4,7 @@ import imageio
 import numpy as np
 import scipy
 from  scipy import misc
+import matplotlib.pyplot as plt
 
 # imports from dlib test 
 import sys
@@ -65,7 +66,11 @@ def drawCirclesOnImages(image, eye, circles, offset_x, offset_y):
        cv2.circle(image,(i[0],i[1]),2,(255,0,0),3)
 
 def cropEye(eye, roi_corners):
+  assert(eye is not None)
   grayEye =  cv2.cvtColor(eye, cv2.COLOR_BGR2GRAY)
+  if(grayEye is None):
+    print eye
+  assert(grayEye is not None)
   grayEye = cv2.medianBlur(grayEye,3)
   mask = np.zeros(grayEye.shape, dtype=np.uint8)
   cv2.fillPoly(mask, roi_corners, 255)
@@ -77,6 +82,8 @@ def cropLeftEye(img, data):
   minX, maxX = (data[36, 0] - CROP_BUFFER, data[39, 0] + CROP_BUFFER)
   minY, maxY = (data[38, 1] - CROP_BUFFER, data[41, 1] + CROP_BUFFER)
   eye = img[minY:maxY,minX:maxX ]
+  if(eye.shape[0] == 0): # eye is Closed completely
+    return (None, -1, -1)
   roi_corners = np.array([data[range(36,42), :]], dtype=np.int32)
   roi_corners =  roi_corners - np.array([ minX, minY], dtype='int32')
   grayEye = cropEye(eye, roi_corners)
@@ -88,6 +95,8 @@ def cropRightEye(img, data):
   minX, maxX = (data[42, 0] - CROP_BUFFER, data[45, 0] + CROP_BUFFER)
   minY, maxY = (data[44, 1] - CROP_BUFFER, data[46, 1] + CROP_BUFFER)
   eye = img[minY:maxY,minX:maxX ]
+  if(eye.shape[0] == 0): # eye is Closed completely
+    return (None, -1, -1)
   roi_corners = np.array([data[range(42, 48), :]], dtype=np.int32)
   roi_corners =  roi_corners - np.array([ minX, minY], dtype='int32')
   grayEye = cropEye(eye, roi_corners)
@@ -157,8 +166,14 @@ def extractIrisForEachFrame(videoPath, dataPath, drawOutFrames=False):
      # cv2.imwrite('testDrawEye{0}.jpg'.format(f),image[min(minY_l, minY_r)-50:minY_l+100,minX_l - 50:minX_r+100 ])
      # continue
 
-     leftCircle  = extractCirclesDraw(eyeLeft, image, drawOutFrames,  minX_l, minY_l)
-     rightCircle = extractCirclesDraw(eyeRight, image, drawOutFrames,minX_r, minY_r)
+     if(eyeLeft is None): # currently will be none if height is zero, i.e. eye is full closed
+        leftCircle = np.array([-1,-1,-1])
+     else:
+        leftCircle  = extractCirclesDraw(eyeLeft, image, drawOutFrames,  minX_l, minY_l)
+     if(eyeRight is None):
+        rightCircle = np.array([-1,-1,-1])
+     else:
+        rightCircle = extractCirclesDraw(eyeRight, image, drawOutFrames,minX_r, minY_r)
 
      if(drawOutFrames):
         cv2.imwrite('testEye{0}.jpg'.format(f), image)
@@ -181,8 +196,14 @@ def extractIrisForEachFrame(videoPath, dataPath, drawOutFrames=False):
 def forAllFilesInDir(pathData, pathMovie):
     i = 0
     numSuccess = 0
-    for f in os.listdir(pathData):
-        if f.endswith(".p") and not(f.endswith("_iris.py")):
+    listing = os.listdir(pathData)
+    for f in listing:
+        if f.endswith(".p") and not(f.endswith("_iris.p")):
+            print(f)
+            print(f[:-2])
+            if(f[:-2] + "_iris.p" in listing):
+              print('Skipping processing {0}, output already exists'.format(f))
+              continue 
             outFileName = os.path.join(pathData, f[:-2]) + "_iris.p"
             movieName =  os.path.join(pathMovie, f[:-2]) + ".mp4"
             dataName = os.path.join(pathData, f)
