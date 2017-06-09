@@ -5,8 +5,8 @@ class Historgram():
   data = None
   assumeEyeHeightWidthRatio = 0
  
-  SIDEWAYS_BUFFER = 20 
-   
+  SIDEWAYS_BUFFER = 10 
+  UP_DOWN_BUFFER = 5 
   '''
   assumeEyeHalfHeightWidthRatio conservative ration of eye height radius to width
   '''
@@ -24,22 +24,27 @@ class Historgram():
   def insertEyeDataToHistorgram(self,irisXY, facialFeatures, eyeLeft=True):
     eyeWidth = facialFeatures[39,0] - facialFeatures[36,0]
     eyeHeight = self.assumeEyeHeightWidthRatio * eyeWidth
-    print( facialFeatures[39,0])
-    print(facialFeatures[36,0])
     if(not eyeLeft):
       eyeWidth = facialFeatures[45,0] - facialFeatures[42,0]
-    # eyeWidth = eyeWidth + 2*SIDEWAYS_BUFFER
+    eyeWidth =  eyeWidth  + 2*self.SIDEWAYS_BUFFER
+    eyeHeight = eyeHeight + 2*self.UP_DOWN_BUFFER
+
     eyeCornerHightDiff =  facialFeatures[36,1] - facialFeatures[39,1]
     topLeftCorner = facialFeatures[36,:] - np.array([0,eyeHeight/2]) + eyeCornerHightDiff/2
     irisInBox = irisXY - topLeftCorner
-    print('irisInBox {0}'.format(irisInBox))
-    print('eyeWidth {0}'.format(eyeWidth))
 
     gridCellX  =  int((self.widthPartitions*irisInBox[0])/eyeWidth)
     gridCellY  =  int((self.hightPartitions*irisInBox[1])/eyeHeight)
-    print(gridCellX)
-    print(gridCellY)
 
+    def capBounds(val, lower, upper):
+      if val < lower:
+         return lower
+      if val > upper:
+         return upper
+      return val 
+
+    gridCellX = capBounds(gridCellX, 0, self.widthPartitions -1)
+    gridCellY = capBounds(gridCellY, 0, self.hightPartitions -1)
     self.data[gridCellY, gridCellX] = self.data[gridCellY, gridCellX] + 1
 
   def insertEyeDataCollectionToHistogram(self,irisData, facialFeatureData, eyeLeft=True):
