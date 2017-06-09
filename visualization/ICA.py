@@ -45,7 +45,7 @@ if __name__ == '__main__':
       exit()
   fileName = sys.argv[1] 
   ''' 
-  fileName = '/home/noa_glaser/data/train-5-6/extractedFacialFeatures/Yj36y7ELRZE.000.p' 
+  fileName = '/home/noa_glaser/proj/data/train-2/extractedFaces/ahqyOhg6D7c.003.p' 
 
   a = pickle.load(open( fileName, "rb" )) 
   data = a['data']
