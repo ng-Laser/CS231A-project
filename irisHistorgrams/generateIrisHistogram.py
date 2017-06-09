@@ -135,6 +135,7 @@ def forAllInDir(path):
        # start picking iris data frames we wantn to plot
        selected =  _randomlySelectFrames(irisData, iris['frames'], numFrames=170)
        if(selected is None): # not enough valid frames 
+         print('not enough valid frames')
          continue
        irisTrackingPoints, irisFrames = selected
        assert(features.get('frames') is not None)

@@ -198,7 +198,7 @@ def forAllFilesInDir(pathData, pathMovie):
     numSuccess = 0
     listing = os.listdir(pathData)
     for f in listing:
-        if f.endswith(".p") and '_' not in f:
+        if f.endswith(".p")  and not f.endswith("_iris.p"):
             print(f)
             print(f[:-2])
             if(f[:-2] + "_iris.p" in listing):
@@ -225,7 +225,7 @@ def forAllFilesInDir(pathData, pathMovie):
             if(extracted is not  None):
               pickle.dump(extracted,  open( outFileName , "wb" ) )
               numSuccess = numSuccess + 1
-              print('So far outputed {0} files'.format(numSuccess))
+            print('So far outputed {0} files'.format(numSuccess))
 
 
 if __name__ == '__main__':
