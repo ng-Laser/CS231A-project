@@ -43,12 +43,12 @@ def resetNamesBack(dr):
 
   for fileName in os.listdir(dr):
     fileName = fileName.replace(fileEnding,'.mp4')
-    if(label_dicts.get(fileName)== None):
+    if(label_dicts.get(fileName)is None):
         print fileName, 'not in dictionary'
         fileNameCp  = fileName
 	for i in range(3):
           fileNameCp  = '-' + fileNameCp
-    	  if(label_dicts.get(fileNameCp) != None):
+    	  if(label_dicts.get(fileNameCp) is not  None):
             print 'renaming', os.path.join(dr, fileName),os.path.join( dr, fileNameCp)
             # os.rename(os.path.join(dr, fileName),os.path.join( dr, fileNameCp))
             pass 

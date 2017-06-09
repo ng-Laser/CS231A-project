@@ -12,7 +12,7 @@ def update_line(num, data, line, annotationStuff):
     # line.set_data(data[..., :num])
     # return np.random.randint(1, 30, 30), np.random.randint(1, 30, 30)
     line.set_data(data[num, :,0], data[num,:,1])
-    if(annotationStuff != None):
+    if(annotationStuff is not None):
       annotation, plt, annotationLocation = annotationStuff
       print(annotationLocation)
       print(annotation[num])

@@ -124,7 +124,7 @@ def extractCirclesDraw(eye, image, draw, minX, minY):
   # cv2.imwrite('testEyePlain.jpg', grayEye)
   circles = cv2.HoughCircles(eye,cv2.HOUGH_GRADIENT, 1,int(eye.shape[1]),
          param1=30,param2=10, minRadius=int(eye.shape[0]*.1))
-  if(circles != None):
+  if(circles is not None):
     circles = np.uint16(np.around(circles)) # around rounds
     try:
       drawCirclesOnImages(image,eye, circles, minX, minY)
@@ -150,7 +150,7 @@ def extractIrisForEachFrame(videoPath, dataPath, drawOutFrames=False):
     return None
 
   meta_data = vid.get_meta_data()
-  if(a.get('frames') == None):
+  if(a.get('frames') is None):
     frames = generateFrameNumbers(meta_data) 
   else:
     frames = a['frames'].astype(np.int32)
@@ -222,7 +222,7 @@ def forAllFilesInDir(pathData, pathMovie):
               print("Extraction for movie {0} failed".format(movieName))
               continue # should probably printn something here  
             '''
-            if(extracted != None):
+            if(extracted is not  None):
               pickle.dump(extracted,  open( outFileName , "wb" ) )
               numSuccess = numSuccess + 1
               print('So far outputed {0} files'.format(numSuccess))

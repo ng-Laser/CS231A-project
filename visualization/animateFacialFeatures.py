@@ -77,7 +77,7 @@ if __name__ == '__main__':
   a = pickle.load(open(movieDataPath, 'rb'))
 
   frames = None
-  if(a.get('frames') == None):
+  if(a.get('frames') is None):
    print('Old and buggy kind')
    meta_data = vid.get_meta_data()
    frames = generateFrameNumbers(meta_data)

@@ -130,7 +130,7 @@ def forAllFilesInDir(pathSource, pathDest):
             vidName = os.path.join(pathSource, f)
             print(vidName)
             extracted = extractFeaturesForEachFrame(vidName)
-            if(extracted == None):
+            if(extracted is None):
                continue 
 
             pickle.dump(extracted,  open( outFileName , "wb" ) )
