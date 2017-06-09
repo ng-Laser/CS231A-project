@@ -198,7 +198,7 @@ def forAllFilesInDir(pathData, pathMovie):
     numSuccess = 0
     listing = os.listdir(pathData)
     for f in listing:
-        if f.endswith(".p") and not(f.endswith("_iris.p")):
+        if f.endswith(".p") and '_' not in f:
             print(f)
             print(f[:-2])
             if(f[:-2] + "_iris.p" in listing):
